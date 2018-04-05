@@ -1,0 +1,1 @@
+This repo is a collection of examples that use R for data analysis.
