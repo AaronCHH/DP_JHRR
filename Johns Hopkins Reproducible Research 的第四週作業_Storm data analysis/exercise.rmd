@@ -1,0 +1,118 @@
+---
+title: "PT1"
+output:
+  html_document:
+    df_print: paged
+---
+
+## 載入套件 Required Packages
+```{r}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(magrittr)
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.table.format = "html")
+```
+## 資料處理 Data Processing
+
+```{r}
+data_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+data_path <- "~/Downloads/StormData.csv.bz2"
+# download.file(data_url, destfile = data_path)
+storm_data <- read.csv(data_path, stringsAsFactors = FALSE)
+```
+
+## 資料外觀 Exploring Data
+```{r}
+storm_data %>%
+  head() %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%")
+dim(storm_data)
+length(unique(storm_data$EVTYPE))
+top100_events <- storm_data %>%
+  group_by(EVTYPE) %>%
+  summarise(CNT = n()) %>%
+  arrange(desc(CNT)) %>%
+  head(n = 100)
+top100_events %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(height = "300px")
+```
+
+## 歸類極端氣候事件 Mapping Events
+```{r}
+storm_data$NEW_EVTYPE <- (storm_data$EVTYPE)
+is_heat <- grepl(pattern = "HEAT", storm_data$NEW_EVTYPE)
+is_wind <- grepl(pattern = "WIND", storm_data$NEW_EVTYPE)
+is_hurricane <- grepl(pattern = "HURRICANE", storm_data$NEW_EVTYPE)
+is_flood <- grepl(pattern = "FLOOD", storm_data$NEW_EVTYPE)
+is_storm <- grepl(pattern = "STORM", storm_data$NEW_EVTYPE)
+filter_list <- list(is_heat, is_wind, is_hurricane, is_flood, is_storm)
+new_evtypes <- c("HEAT", "WIND", "HURRICANE", "FLOOD", "STORM")
+for (i in 1:length(filter_list)) {
+  storm_data$NEW_EVTYPE[filter_list[[i]]] <- new_evtypes[i]
+}
+```
+
+## 調整單位 Adjust Units
+```{r}
+iterators_vec <- c("PROPDMGEXP", "CROPDMGEXP")
+for (EXP in iterators_vec) {
+  storm_data[, EXP] <- tolower(storm_data[, EXP])
+  storm_data <- storm_data[storm_data[, EXP] %in% c("m", "b"), ]
+  storm_data[, EXP] <- ifelse(storm_data[, EXP] == "m", 1e+06, 1e+09)
+}
+storm_data$TOTALPROPDMG <- as.numeric(storm_data$PROPDMG) * storm_data$PROPDMGEXP
+storm_data$TOTALCROPDMG <- as.numeric(storm_data$CROPDMG) * storm_data$CROPDMGEXP
+```
+
+## 答題 Results
+```{r}
+top6_pop_dmg <- storm_data %>%
+  mutate(FATALITIES_INJURIES = as.numeric(FATALITIES) + as.numeric(INJURIES)) %>%
+  group_by(EVTYPE) %>%
+  summarise(POP_HEALTH = sum(FATALITIES_INJURIES)) %>%
+  arrange(desc(POP_HEALTH)) %>%
+  head()
+event_order <- rev(top6_pop_dmg$EVTYPE)
+top6_pop_dmg$EVTYPE <- factor(top6_pop_dmg$EVTYPE, levels = event_order)
+top6_pop_dmg %>%
+  kable() %>%
+  kable_styling()
+ggplot(top6_pop_dmg, aes(x = EVTYPE, y = POP_HEALTH, fill = EVTYPE)) +
+  geom_bar(stat = "identity") +
+  xlab("Event") +
+  ylab("Injuries and Fatalities") +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  ggtitle("Top 6 Harmful Events for Population Health")
+```
+## 龍捲風造成的人員傷亡最嚴重。
+```{r}
+top6_eco_dmg <- storm_data %>%
+  mutate(TTLDMG = as.numeric(PROPDMG) + as.numeric(CROPDMG)) %>%
+  group_by(EVTYPE) %>%
+  summarise(ECONOMIC_CONSEQUENCE = sum(TTLDMG)) %>%
+  arrange(desc(ECONOMIC_CONSEQUENCE)) %>%
+  head()
+event_order <- rev(top6_eco_dmg$EVTYPE)
+top6_eco_dmg$EVTYPE <- factor(top6_eco_dmg$EVTYPE, levels = event_order)
+top6_eco_dmg %>%
+  kable() %>%
+  kable_styling()
+ggplot(top6_eco_dmg, aes(x = EVTYPE, y = ECONOMIC_CONSEQUENCE, fill = EVTYPE)) +
+  geom_bar(stat = "identity") +
+  xlab("Event") +
+  ylab("Properties and Crops") +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  ggtitle("Top 6 Harmful Events for Economic Consequences")
+```
+
